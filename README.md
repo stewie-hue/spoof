@@ -1,15 +1,9 @@
-# VirtualCam Lab — Fixed Build Starter
+# VirtualCam Lab — JVM target fix
 
-This Android starter app selects an image and displays it inside its own local preview, plus basic device diagnostics.
+The build log showed Java compiling for JVM 1.8 while Kotlin compiled for JVM 17. This version explicitly sets Java source/target compatibility and Kotlin `jvmTarget` to 17 in `app/build.gradle.kts`.
 
-## Build workflow fix
-The workflow intentionally removes `android-actions/setup-android@v3` because earlier project logs showed it trying to resolve the obsolete SDK package `tools`. It uses the GitHub runner's preinstalled Android SDK at `/usr/local/lib/android/sdk`, checks for Android platform 35 and Build Tools 35.0.0, and installs those packages only if missing.
+The GitHub Actions workflow also avoids `android-actions/setup-android@v3`, which previously attempted to install the obsolete SDK package `tools`, and checks the runner's preinstalled SDK.
 
-## Build from a phone
-1. Upload the contents of this ZIP to a GitHub repository, preserving paths.
-2. Open Actions and run **Build VirtualCam Lab APK**.
-3. Download the `virtualcam-lab-debug-apk` artifact from a successful run.
-4. Extract it and install `app-debug.apk`.
+This app is a local image-preview/testing starter only. It does not replace system camera output or inject images into third-party apps.
 
-## Boundaries
-The app only previews the chosen image inside itself. It does not replace the system camera, inject images into other apps, or bypass KYC/liveness checks.
+Build from a phone: upload this project to GitHub, run **Build VirtualCam Lab APK** under Actions, then download the `virtualcam-lab-debug-apk` artifact.
