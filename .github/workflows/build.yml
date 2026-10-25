@@ -1,27 +1,68 @@
 name: Build VirtualCam Lab APK
+
 on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-      - name: Build APK
+
+      # Deliberately do not use android-actions/setup-android@v3:
+      # in this project's prior build logs it attempted to resolve the obsolete
+      # SDK package "tools" and failed. Use the runner's preinstalled SDK instead.
+      - name: Inspect preinstalled Android SDK
+        shell: bash
         run: |
-          gradle wrapper --gradle-version 8.9
-          gradle --no-daemon assembleDebug
-      - uses: actions/upload-artifact@v4
+          set -euo pipefail
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME" || { echo "::error::Android SDK directory not found"; exit 1; }
+          find "$ANDROID_HOME/cmdline-tools" -maxdepth 3 -name sdkmanager -type f 2>/dev/null || true
+          ls -la "$ANDROID_HOME/platforms" || true
+          ls -la "$ANDROID_HOME/build-tools" || true
+
+      - name: Install required SDK packages if missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' 2>/dev/null | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::No sdkmanager found in preinstalled Android SDK"
+            exit 1
+          fi
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+            "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          fi
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --version
+          gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: virtualcam-lab-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
